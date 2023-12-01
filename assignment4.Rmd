@@ -177,14 +177,7 @@ Next, we need process the SST and depth data so that they can be combined. In th
 mean_sst_stack <- mean(sst_stack)
 
 mean_sst_stack
-
-# less immediately reproducible pathway
-# averaging the mean outcomes
-sst_means <- mean_sst_summary %>% 
-  mean(mean_sst_08, mean_sst_09, mean_sst_10, mean_sst_11, mean_sst_12)
-
-
-#--------------------------------------------------------------------------
+#-------------------------------------------------------------------------- 
 # ideas but unsure if needed
 
 # Mean for each year in layers
@@ -194,6 +187,10 @@ mean_sst_summary <- summarize(mean_sst_08 = mean(sst_08$y),
                               mean_sst_10 = mean(sst_10$y), 
                               mean_sst_11 = mean(sst_11$y),
                               mean_sst_12 = mean(sst_12$y))
+# averaging the mean outcomes
+sst_means <- mean_sst_summary %>% 
+  mean(mean_sst_08, mean_sst_09, mean_sst_10, mean_sst_11, mean_sst_12)
+
 ```
 
 -   convert SST data from Kelvin to Celsius\
