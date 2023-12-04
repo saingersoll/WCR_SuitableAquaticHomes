@@ -83,6 +83,11 @@ setwd(here())
 # Reading in shapefile
 wc_regions_clean <- st_read("data/wc_regions/wc_regions_clean.shp",
                             quiet = TRUE)
+# Checking CRS
+crs(wc_regions_clean)
+
+# Visualizing Data
+plot(wc_regions_clean["rgn_id"])
 ```
 
 -   read in SST rasters
@@ -95,14 +100,13 @@ wc_regions_clean <- st_read("data/wc_regions/wc_regions_clean.shp",
 ```{r}
 # Reading in rasters
 sst_08 <- read_stars("data/average_annual_sst_2008.tif") 
-sst_08 <- st_transform(sst_08, crs = "EPSG:4326")
-crs(sst_08)
-summarize(sst_08)
-
 sst_09 <- read_stars("data/average_annual_sst_2009.tif")
 sst_10 <- read_stars("data/average_annual_sst_2010.tif")
 sst_11 <- read_stars("data/average_annual_sst_2011.tif")
 sst_12 <- read_stars("data/average_annual_sst_2012.tif")
+
+# Checkng CRS, shows evidence ofno projection
+crs(sst_08)
 ```
 
 -   combine SST rasters into a raster stack
@@ -111,35 +115,67 @@ sst_12 <- read_stars("data/average_annual_sst_2012.tif")
 # Combining SST rasters into raster stack
 
 # object tifs names are stored in 
-files_list <- c("data/average_annual_sst_2008.tif", 
-              "data/average_annual_sst_2009.tif", 
-              "data/average_annual_sst_2010.tif",
-              "data/average_annual_sst_2011.tif", 
-              "data/average_annual_sst_2012.tif")
+files_list <- c("data/sst/average_annual_sst_2008.tif", 
+                "data/sst/average_annual_sst_2009.tif", 
+                "data/sst/average_annual_sst_2010.tif",
+                "data/sst/average_annual_sst_2011.tif", 
+                "data/sst/average_annual_sst_2012.tif")
+# SpatRaster
+sst_stack <- rast(files_list) %>% 
+  project("EPSG:4326")
 
-# raster stack as SpatRaster object
-sst_stack <- rast(crs = "EPSG:4326",
-                  files_list) 
+# Confirm all tifs in stack and projected correctly
+sst_stacked                        
 
-sst_stack
+plot(sst_stack)
+#---------------------------------------------------------------------
+# large rasterlayers & large list 
+# Creates a storing list of tifs
+file_list <- list.files(
+  here("data/sst"),
+  pattern = ".tif",
+  full.names = TRUE
+)
 
-# POTENTIAL USE
-#terra::writeRaster(sst_stack, "data/"file_lists, filetype = "GTiff", #overwrite = TRUE)
+# reference raster for resampling
+ref_sst <- raster(file_list[1])
 
-# BUNK CODE
-#terra::writeRaster(nlayers = files_list,
- #           file.path(here("data/"),
-  #                    names(t)),
-   #         format = "GTiff",
-    #        bylayer = TRUE
-     #       )
+# raster stack as SpatRaster object & projecting it
+sst_stacked <- list()
+
+for (file in file_list) {
+  sst <- raster(file)
+  resampled_sst <- resample(sst, ref_sst) 
+  sst_crop <- crop(resampled_sst, extent(ref_sst))
+  sst_stacked[[file]] <- sst_crop
+}
+
+# Visualizing the components of the ratster stack
+plot(sst_stacked)
 ```
 
 -   read in bathymetry raster (`depth.tif`)
 
 ```{r}
-# Reading in depth tif
+# Reading in depth tif spatraster
 depth <- read_stars("data/depth.tif")
+
+# Checking crs, provides evidence that this tif is not projected
+crs(depth)
+
+# Projecting CRS
+depth <- rast(depth) %>% 
+ project("EPSG:4326")
+#-------------------------------------------------
+# Projecting CRS
+depth <- raster(depth) %>% 
+ project("EPSG:4326")
+
+# Confirming projection succuessful
+crs(depth)
+
+# Visualizing depth
+plot(depth)
 ```
 
 -   check that data are in the same coordinate reference system\
@@ -147,18 +183,6 @@ depth <- read_stars("data/depth.tif")
 
 ```{r include=TRUE, warning=FALSE, messages=FALSE}
 # Checking CRS
-crs(wc_regions_clean)
-glimpse(crs(sst_stack))
-glimpse(crs(depth))
-
-# Matching CRS
-# likely need to project the SpatRaster
-sst_stack <- st_transform(sst_stack, 
-                          crs = "4326")
-depth <- st_transform(depth,
-                      crs = "4326")
-
-# Confirming reprojection successful
 glimpse(crs(wc_regions_clean))
 glimpse(crs(sst_stack))
 glimpse(crs(depth))
@@ -174,7 +198,7 @@ Next, we need process the SST and depth data so that they can be combined. In th
 # Finding the mean
 
 # Mean of the overall stack 
-mean_sst_stack <- mean(sst_stack)
+mean_sst_stack <- mean(sst_stack, na.rm = TRUE)
 
 mean_sst_stack
 #-------------------------------------------------------------------------- 
@@ -202,29 +226,38 @@ mean_sst_stack
 # need to find function that works on SpatRaster
 # mutate and transmute not working
 
-mean_sst_stack <- mean_sst_stack %>% 
-  transmute(mean_C = mean_sst_stack$mean - 273.15)
+#mean_sst_stack <- mean_sst_stack %>% 
+ # transmute(mean_C = mean_sst_stack$mean - 273.15)
 
+mean_sst_stack_c <- mean_sst_stack - 273.15 
+mean_sst_stack_c
 ```
 
 -   crop depth raster to match the extent of the SST raster
     -   note: the resolutions of the SST and depth data do not match
 
 ```{r}
-
+depth
 ```
 
 -   resample the NPP data to match the resolution of the SST data using the nearest neighbor approach
 
 ```{r}
+# resampling depth to match mean_sst_stack resolution using nearest nbr
+depth_resampled <- resample(depth, mean_sst_stack_c, method = "near")
 
+# boolean test to see if resolutions match
+resolution(depth_resampled) == resolution(mean_sst_stack_c)
 ```
 
 -   check that the depth and SST match in resolution, extent, and coordinate reference system\
     -   hint: can the rasters be stacked?
 
 ```{r include=TRUE}
+# confirming last step successful with stack
+depth_sst <- rast(c(mean_sst_stack_c, depth_resampled))
 
+plot(depth_sst)
 ```
 
 #### Find suitable locations (20)

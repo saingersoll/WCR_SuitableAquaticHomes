@@ -1,0 +1,73 @@
+{r}
+# Rasterize data for stats this isn't running
+
+id_rast <- rasterize(wc_regions_clean, sst_stack, field = "rgn_id")
+plot(id_rast)
+
+# reclassification matrix
+rcl <- matrix(c(-Inf, 0.4, NA,
+                0.4, 0.6, 1,
+                0.6, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify tif
+rcl_sst <- classify(sst_stack, rcl = rcl)
+
+plot(rcl_sst)
+
+# get mean using zonal stats
+sst_zonal <- zonal(rcl_sst, id_rast, fun = "mean", na.rn = TRUE) %>% 
+  filter(!is.na(SST)) %>%              # check input here 
+  mutate(method = "Method 1")
+
+# combining and filtering
+sst_wc_regions <- terra::extract(x = sst_stack, y = wc_regions_clean)
+
+# summarizing sea surface temp of each region
+sst_wc_summary <- sst_wc_regions %>% 
+  group_by(rgn_id) %>% 
+  summarize(sst_mean = mean(SST))
+
+# join summary w/ wc region data
+wc_sst_mean <- full_join(wc_regions_clean, sst_wc_summary)
+
+
+# filtering 
+x =                                # sea surface temp for range
+
+wc_sst_sub <- wc_sst_mean %>% 
+  st_drop_geometry() %>% 
+  filter(sst_mean < x & x > sst_mean) %>% 
+  distinct() %>% 
+  select(rgn_id, sst_mean) %>% 
+  mutate(method = "Method 2")
+
+# joining methods
+methods_sum <- full_join(sst_zonal, wc_sst_sub)
+
+methods_count <- methods_sum %>% 
+  group_by(rgn_id) %>% 
+  summarize(count = as.factor(n())) %>%  # what regions are in both 
+  full_join(methods_sum)                 # rejoin with data
+
+# visualizing
+ggplot(method_count) +
+  geom_jitter(aes(method,
+                  rgn_id,
+                  color = count,
+                  alpha = count),
+              height = 0) +
+  theme_bw() +
+  scale_color_manual(values = c("pink", "purple")) +
+  scale_alpha_manual(values = c(1, 0.5))
+
+# depth zonal stats
+depth_rast <- rasterize(wc_regions_clean, sst_stack, field = "rgn_id")
+plot(id_rast)
+
+depth_zonal <- zonal(depth, depth_rast, fun = "mean", na.rm = TRUE) #get mean of ghm within access level types
+
+access_zonal %>% #create nice table
+  kable(digits = 2, col.names = c("Sea Surface Temp Mean", "Something")) %>% #adjust digits and column names
+  kable_minimal()
