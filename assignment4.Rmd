@@ -257,6 +257,7 @@ resolution(depth_resampled) == resolution(mean_sst_stack_c)
 # confirming last step successful with stack
 depth_sst <- rast(c(mean_sst_stack_c, depth_resampled))
 
+# plot not successful yet
 plot(depth_sst)
 ```
 
@@ -264,27 +265,110 @@ plot(depth_sst)
 
 In order to find suitable locations for marine aquaculture, we'll need to find locations that are suitable in terms of both SST and depth.
 
--   reclassify SST and depth data into locations that are suitable for Lump sucker fish\
-    -   hint: set suitable values to `1` and unsuitable values to `NA`\
+-   reclassify SST and depth data into locations that are suitable for oysters
+    -   hint: set suitable values to `1` and unsuitable values to `NA`
+
+```{r}
+# SST oyster locations
+# reclassification matrix: binary raster where sst 11:30 degrees C = 1
+rcl <- matrix(c(-Inf, 11, NA,
+                11, 30, 1,
+                30, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify tif
+rcl_sst <- classify(mean_sst_stack_c, rcl = rcl)
+
+# visualize 
+plot(rcl_sst,
+     col = "pink")
+
+```
+
+```{r}
+# depth oyster locations
+# reclassification matrix: binary raster where sst 0:70 ft C = 1
+rcl2 <- matrix(c(-Inf, 0, NA,
+                11, 70, 1,
+                70, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify tif
+rcl_depth <- classify(depth_resampled, rcl = rcl2)
+
+plot(rcl_depth)
+
+```
+
 -   find locations that satisfy both SST and depth conditions\
-    -   hint: create an overlay using the `lapp()` function multiplying cell values\
+    -   hint: create an overlay using the `lapp()` function multiplying cell values
 
 ```{r include=TRUE}
+# creating a list storing spatrasters
+list = list(rcl_sst, rcl_depth)
 
+# creating a function
+fun = function(x,y) {
+  return(x*y)
+}
+
+# combining spatrasters
+oyster_homes <- lapp(list = list,
+                     fun = fun)
 ```
 
 #### Determine the most suitable EEZ (20 points)
 
 We want to determine the total suitable area within each EEZ in order to rank zones by priority. To do so, we need to find the total area of suitable locations within each EEZ.
 
--   select suitable cells within West Coast EEZs\
--   find area of grid cells\
+-   select suitable cells within West Coast EEZs
+
+```{r}
+# combining and filtering for oyster areas
+oyster_zones <- extract(oyster_homes, wc_regions_clean)
+
+# logical vector out of list
+oyster_zones_vector <- unlist(oyster_zones)
+
+# visualize
+plot(oyster_zones_vector)
+```
+
+```{r}
+# Oyster mask adjusted to reflect suitable wc regions
+oyster_homes[] <- NA
+oyster_homes[oyster_zones_vector] <- 1
+```
+
+-   find area of grid cells
+
+```{r}
+# area of grid cells
+cell_area <- area(oyster_homes)
+```
+
 -   find the total suitable area within each EEZ\
-    -   hint: it might be helpful to rasterize the EEZ data\
+    -   hint: it might be helpful to rasterize the EEZ data
+
+```{r}
+# rasterize wc region data
+eez <- rasterize(wc_regions_clean, oyster_homes)
+
+# calculate total suitable area in rgns
+tot_suitable_area <- zonal(cell_area,
+                           eez,
+                           fun = sum,
+                           na.rm = TRUE)
+```
+
 -   find the percentage of each zone that is suitable\
-    -   hint it might be helpful to join the suitable area by region onto the EEZ vector data\
+    -   hint it might be helpful to join the suitable area by region onto the EEZ vector data
 
 ```{r include=TRUE}
+# percentage suitable
+suitable_percentage <- tot_suitable_area / st_area(wc_regions_clean) * 100
 
 ```
 
@@ -294,8 +378,21 @@ Now that we have results, we need to present them!
 
 Create the following maps:
 
--   total suitable area by region\
--   percent suitable area by region\
+-   total suitable area by region
+
+```{r}
+# joining by total suitable region
+eez_percentage <- cbind(wc_regions_clean,
+                        suitable_percentage)
+```
+
+-   percent suitable area by region
+
+```{r}
+# joining by region on vector data suitable %
+eez_area <- cbind(wc_regions_clean,
+                  suitable_percentage)
+```
 
 Include:
 
@@ -315,3 +412,5 @@ Now that you've worked through the solution for one group of species, let's upda
 -   create maps of total suitable area and percent suitable area per EEZ with the species name in the title\
 
 Run your function for a species of your choice! You can find information on species depth and temperature requirements on [SeaLifeBase](https://www.sealifebase.ca/search.php). Remember, we are thinking about the potential for marine aquaculture, so these species should have some reasonable potential for commercial consumption.
+
+<https://www.sealifebase.ca/Country/CountrySpeciesSummary.php?c_code=840&id=57476>
