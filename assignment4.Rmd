@@ -125,33 +125,33 @@ sst_stack <- rast(files_list) %>%
   project("EPSG:4326")
 
 # Confirm all tifs in stack and projected correctly
-sst_stacked                        
+sst_stack                        
 
 plot(sst_stack)
 #---------------------------------------------------------------------
 # large rasterlayers & large list 
 # Creates a storing list of tifs
-file_list <- list.files(
-  here("data/sst"),
-  pattern = ".tif",
-  full.names = TRUE
+#file_list <- list.files(
+#  here("data/sst"),
+#  pattern = ".tif",
+ # full.names = TRUE
 )
 
 # reference raster for resampling
-ref_sst <- raster(file_list[1])
+#ref_sst <- raster(file_list[1])
 
 # raster stack as SpatRaster object & projecting it
-sst_stacked <- list()
+#sst_stacked <- list()
 
-for (file in file_list) {
-  sst <- raster(file)
-  resampled_sst <- resample(sst, ref_sst) 
-  sst_crop <- crop(resampled_sst, extent(ref_sst))
-  sst_stacked[[file]] <- sst_crop
-}
+#for (file in file_list) {
+#  sst <- raster(file)
+#  resampled_sst <- resample(sst, ref_sst) 
+#  sst_crop <- crop(resampled_sst, extent(ref_sst))
+#  sst_stacked[[file]] <- sst_crop
+#}
 
 # Visualizing the components of the ratster stack
-plot(sst_stacked)
+#plot(sst_stacked)
 ```
 
 -   read in bathymetry raster (`depth.tif`)
@@ -255,7 +255,7 @@ resolution(depth_resampled) == resolution(mean_sst_stack_c)
 
 ```{r include=TRUE}
 # confirming last step successful with stack
-depth_sst <- rast(c(mean_sst_stack_c, depth_resampled))
+depth_sst <- c(mean_sst_stack_c, depth_resampled)
 
 # plot not successful yet
 plot(depth_sst)
@@ -315,7 +315,7 @@ fun = function(x,y) {
 }
 
 # combining spatrasters
-oyster_homes <- lapp(list = list,
+oyster_homes <- lapp(c(rcl_sst, rcl_depth),
                      fun = fun)
 ```
 
@@ -327,13 +327,10 @@ We want to determine the total suitable area within each EEZ in order to rank zo
 
 ```{r}
 # combining and filtering for oyster areas
-oyster_zones <- extract(oyster_homes, wc_regions_clean)
+oyster_zones <- extract(oyster_homes, wc_regions_clean) # spatraster, vector with points we want to extract
 
 # logical vector out of list
 oyster_zones_vector <- unlist(oyster_zones)
-
-# visualize
-plot(oyster_zones_vector)
 ```
 
 ```{r}
@@ -346,7 +343,7 @@ oyster_homes[oyster_zones_vector] <- 1
 
 ```{r}
 # area of grid cells
-cell_area <- area(oyster_homes)
+cell_area <- expanse(oyster_homes)
 ```
 
 -   find the total suitable area within each EEZ\
@@ -354,13 +351,26 @@ cell_area <- area(oyster_homes)
 
 ```{r}
 # rasterize wc region data
-eez <- rasterize(wc_regions_clean, oyster_homes)
+eez <- rasterize(x = wc_regions_clean,
+                 y = oyster_homes,
+                 fun = 'sum',
+                 mask = TRUE)
+
+plot(eez)
 
 # calculate total suitable area in rgns
+# zonal only works for rasterlayers not spatrasters - shiuld work
 tot_suitable_area <- zonal(cell_area,
                            eez,
-                           fun = sum,
+                           fun = 'count',
                            na.rm = TRUE)
+          
+          
+#-------------------------------
+#tot_suitable_area <- extract(eez, cell_area)
+
+#plot(tot_suitable_area)
+
 ```
 
 -   find the percentage of each zone that is suitable\
