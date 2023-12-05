@@ -343,7 +343,7 @@ oyster_homes[oyster_zones_vector] <- 1
 
 ```{r}
 # area of grid cells
-cell_area <- expanse(oyster_homes)
+cell_area <- cellSize(oyster_homes)
 ```
 
 -   find the total suitable area within each EEZ\
@@ -354,18 +354,23 @@ cell_area <- expanse(oyster_homes)
 eez <- rasterize(x = wc_regions_clean,
                  y = oyster_homes,
                  fun = 'sum',
-                 mask = TRUE)
+                 mask = TRUE, 
+                 field = 'rgn')
+# field to rasterize by rgn 
 
 plot(eez)
 
+# make a mask
+
+oyster_mask <- mask(mean_sst_stack_c, eez)
+
 # calculate total suitable area in rgns
-# zonal only works for rasterlayers not spatrasters - shiuld work
 tot_suitable_area <- zonal(cell_area,
-                           eez,
-                           fun = 'count',
-                           na.rm = TRUE)
+                           eez)#,
+                          # fun = 'count',
+                           #na.rm = TRUE)
           
-          
+tot_suitable_area       
 #-------------------------------
 #tot_suitable_area <- extract(eez, cell_area)
 
