@@ -365,8 +365,8 @@ EEZ_zonal_stats
 
 ```{r include=TRUE}
 # percentage suitable
-suitable_percentage <- EEZ %>% 
-  append(EEZ_zonal_stats$area / eez_zonal_stats$area * 100)
+#suitable_percentage <- EEZ %>% 
+  #append(EEZ_zonal_stats$area / eez_zonal_stats$area * 100)
 
 # creating a column for percent of suitable areas zonal stats
 zonal_stats <- EEZ_zonal_stats %>%
