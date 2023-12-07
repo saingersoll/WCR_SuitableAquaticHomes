@@ -73,6 +73,7 @@ library(here)
 library(tmap)
 library(stars)
 library(raster)
+library(here)
 rm(list = ls())
 setwd(here())
 ```
@@ -81,7 +82,7 @@ setwd(here())
 
 ```{r}
 # Reading in shapefile
-wc_regions_clean <- st_read("data/wc_regions/wc_regions_clean.shp",
+wc_regions_clean <- st_read("data/wc_regions_clean.shp",
                             quiet = TRUE)
 # Checking CRS
 crs(wc_regions_clean)
@@ -106,7 +107,7 @@ sst_11 <- read_stars("data/average_annual_sst_2011.tif")
 sst_12 <- read_stars("data/average_annual_sst_2012.tif")
 
 # Checkng CRS, shows evidence ofno projection
-crs(sst_08)
+st_crs(sst_08)
 ```
 
 -   combine SST rasters into a raster stack
@@ -115,11 +116,11 @@ crs(sst_08)
 # Combining SST rasters into raster stack
 
 # object tifs names are stored in 
-files_list <- c("data/sst/average_annual_sst_2008.tif", 
-                "data/sst/average_annual_sst_2009.tif", 
-                "data/sst/average_annual_sst_2010.tif",
-                "data/sst/average_annual_sst_2011.tif", 
-                "data/sst/average_annual_sst_2012.tif")
+files_list <- c("data/average_annual_sst_2008.tif", 
+                "data/average_annual_sst_2009.tif", 
+                "data/average_annual_sst_2010.tif",
+                "data/average_annual_sst_2011.tif", 
+                "data/average_annual_sst_2012.tif")
 # SpatRaster
 sst_stack <- rast(files_list) %>% 
   project("EPSG:4326")
@@ -128,30 +129,6 @@ sst_stack <- rast(files_list) %>%
 sst_stack                        
 
 plot(sst_stack)
-#---------------------------------------------------------------------
-# large rasterlayers & large list 
-# Creates a storing list of tifs
-#file_list <- list.files(
-#  here("data/sst"),
-#  pattern = ".tif",
- # full.names = TRUE
-)
-
-# reference raster for resampling
-#ref_sst <- raster(file_list[1])
-
-# raster stack as SpatRaster object & projecting it
-#sst_stacked <- list()
-
-#for (file in file_list) {
-#  sst <- raster(file)
-#  resampled_sst <- resample(sst, ref_sst) 
-#  sst_crop <- crop(resampled_sst, extent(ref_sst))
-#  sst_stacked[[file]] <- sst_crop
-#}
-
-# Visualizing the components of the ratster stack
-#plot(sst_stacked)
 ```
 
 -   read in bathymetry raster (`depth.tif`)
@@ -166,13 +143,6 @@ crs(depth)
 # Projecting CRS
 depth <- rast(depth) %>% 
  project("EPSG:4326")
-#-------------------------------------------------
-# Projecting CRS
-depth <- raster(depth) %>% 
- project("EPSG:4326")
-
-# Confirming projection succuessful
-crs(depth)
 
 # Visualizing depth
 plot(depth)
@@ -200,7 +170,7 @@ Next, we need process the SST and depth data so that they can be combined. In th
 # Mean of the overall stack 
 mean_sst_stack <- mean(sst_stack, na.rm = TRUE)
 
-mean_sst_stack
+plot(mean_sst_stack)
 #-------------------------------------------------------------------------- 
 # ideas but unsure if needed
 
@@ -289,9 +259,9 @@ plot(rcl_sst,
 ```{r}
 # depth oyster locations
 # reclassification matrix: binary raster where sst 0:70 ft C = 1
-rcl2 <- matrix(c(-Inf, 0, NA,
-                11, 70, 1,
-                70, Inf, NA), 
+rcl2 <- matrix(c(-Inf, -70, NA,
+                 -70, 0, 1,
+                 0, Inf, NA), 
               ncol = 3,
               byrow = TRUE)
 
@@ -306,9 +276,6 @@ plot(rcl_depth)
     -   hint: create an overlay using the `lapp()` function multiplying cell values
 
 ```{r include=TRUE}
-# creating a list storing spatrasters
-list = list(rcl_sst, rcl_depth)
-
 # creating a function
 fun = function(x,y) {
   return(x*y)
@@ -317,6 +284,8 @@ fun = function(x,y) {
 # combining spatrasters
 oyster_homes <- lapp(c(rcl_sst, rcl_depth),
                      fun = fun)
+
+plot(oyster_homes)
 ```
 
 #### Determine the most suitable EEZ (20 points)
@@ -339,44 +308,59 @@ oyster_homes[] <- NA
 oyster_homes[oyster_zones_vector] <- 1
 ```
 
--   find area of grid cells
-
-```{r}
-# area of grid cells
-cell_area <- cellSize(oyster_homes)
-```
-
 -   find the total suitable area within each EEZ\
     -   hint: it might be helpful to rasterize the EEZ data
 
 ```{r}
 # rasterize wc region data
-eez <- rasterize(x = wc_regions_clean,
-                 y = oyster_homes,
-                 fun = 'sum',
-                 mask = TRUE, 
+eez <- rasterize(x = wc_regions_clean, 
+                 y = mean_sst_stack_c,
                  field = 'rgn')
 # field to rasterize by rgn 
 
-plot(eez)
-
 # make a mask
+oyster_mask <- mask(eez, oyster_homes)
 
-oyster_mask <- mask(mean_sst_stack_c, eez)
+# crop vector data
+EEZ <- crop(oyster_mask, eez)
 
-# calculate total suitable area in rgns
-tot_suitable_area <- zonal(cell_area,
-                           eez)#,
-                          # fun = 'count',
-                           #na.rm = TRUE)
-          
-tot_suitable_area       
+# plot 
+plot(EEZ)
+
 #-------------------------------
 #tot_suitable_area <- extract(eez, cell_area)
 
 #plot(tot_suitable_area)
 
 ```
+-   find area of grid cells
+
+```{r}
+# area of grid cells of west coast regions
+cell_area <- cellSize(eez)
+
+# calculate west coast areain rgns
+eez_zonal_stats <- zonal(cell_area,
+                     eez,
+                     fun = 'sum',
+                     na.rm = TRUE)
+# check
+eez_zonal_stats
+
+
+# cell size of suitable areas in wcr
+EEZ_cell_area <- cellSize(EEZ)
+  
+# calculate west coast areain rgns
+EEZ_zonal_stats <- zonal(EEZ_cell_area,
+                         EEZ,
+                         fun = 'sum',
+                         na.rm = TRUE)       
+# check
+EEZ_zonal_stats
+
+```
+
 
 -   find the percentage of each zone that is suitable\
     -   hint it might be helpful to join the suitable area by region onto the EEZ vector data
