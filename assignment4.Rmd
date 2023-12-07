@@ -138,6 +138,12 @@ plot(sst_stack)
 depth <- read_stars("data/depth.tif")
 
 # Checking crs, provides evidence that this tif is not projected
+st_crs(depth)
+
+# Visualizing depth shows it's not projecting correctly
+plot(depth)
+
+# output is NA, explains why 
 crs(depth)
 
 # Projecting CRS
@@ -326,12 +332,6 @@ EEZ <- crop(oyster_mask, eez)
 
 # plot 
 plot(EEZ)
-
-#-------------------------------
-#tot_suitable_area <- extract(eez, cell_area)
-
-#plot(tot_suitable_area)
-
 ```
 -   find area of grid cells
 
@@ -358,17 +358,30 @@ EEZ_zonal_stats <- zonal(EEZ_cell_area,
                          na.rm = TRUE)       
 # check
 EEZ_zonal_stats
-
 ```
-
 
 -   find the percentage of each zone that is suitable\
     -   hint it might be helpful to join the suitable area by region onto the EEZ vector data
 
 ```{r include=TRUE}
 # percentage suitable
-suitable_percentage <- tot_suitable_area / st_area(wc_regions_clean) * 100
+suitable_percentage <- EEZ %>% 
+  append(EEZ_zonal_stats$area / eez_zonal_stats$area * 100)
 
+# creating a column for percent of suitable areas zonal stats
+zonal_stats <- EEZ_zonal_stats %>%
+  rename(suitable_area = area) %>%
+  add_column(eez_zonal_stats$area) %>%
+  rename(total_area = 'eez_zonal_stats$area') %>%
+  mutate(pct_suitable = ((suitable_area/total_area)*100))
+
+# confirm it did what we wanted
+zonal_stats
+
+# rasterize zonal stats
+zonal_stats_rast <- left_join(EEZ,zonal_stats, by = 'rgn')
+
+suitable_percentage
 ```
 
 #### Visualize results (5 points)
