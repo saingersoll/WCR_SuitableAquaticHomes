@@ -379,9 +379,14 @@ zonal_stats <- EEZ_zonal_stats %>%
 zonal_stats
 
 # rasterize zonal stats
-zonal_stats_rast <- left_join(EEZ,zonal_stats, by = 'rgn')
+zonal_stats_rast <- c(EEZ, zonal_stats)
+  
+plot(zonal_stats_rast)
+  #st_join(EEZ,
+   #                         zonal_stats, 
+    #                        left = TRUE)
 
-suitable_percentage
+#suitable_percentage
 ```
 
 #### Visualize results (5 points)
