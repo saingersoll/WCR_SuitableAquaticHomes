@@ -1,7 +1,7 @@
 ---
 title: 'EDS 223: assignment 4'
-author: "Sofia Ingersoll"
-date: "2023-12-2"
+author: "Sofia Ingersoll & Heather Childers"
+date: "2023-12-8"
 output:
     html_document:
       print_df: paged
@@ -137,20 +137,20 @@ plot(sst_stack)
 # Reading in depth tif spatraster
 depth <- read_stars("data/depth.tif")
 
-# Checking crs, provides evidence that this tif is not projected
+# Checking crs, we see it's 4326
 st_crs(depth)
 
 # Visualizing depth shows it's not projecting correctly
 plot(depth)
 
-# output is NA, explains why 
+# output is NA, provides evidence that this tif is not properly being projected
 crs(depth)
 
 # Projecting CRS
 depth <- rast(depth) %>% 
  project("EPSG:4326")
 
-# Visualizing depth
+# Visualizing depth is now properly projected
 plot(depth)
 ```
 
@@ -177,20 +177,6 @@ Next, we need process the SST and depth data so that they can be combined. In th
 mean_sst_stack <- mean(sst_stack, na.rm = TRUE)
 
 plot(mean_sst_stack)
-#-------------------------------------------------------------------------- 
-# ideas but unsure if needed
-
-# Mean for each year in layers
-# not the right data type rn
-#mean_sst_summary <- summarize(mean_sst_08 = mean(sst_08$y),
- #                             mean_sst_09 = mean(sst_09$y),
-  #                            mean_sst_10 = mean(sst_10$y), 
-   #                           mean_sst_11 = mean(sst_11$y),
-    #                          mean_sst_12 = mean(sst_12$y))
-# averaging the mean outcomes
-#sst_means <- mean_sst_summary %>% 
- # mean(mean_sst_08, mean_sst_09, mean_sst_10, mean_sst_11, mean_sst_12)
-
 ```
 
 -   convert SST data from Kelvin to Celsius\
@@ -198,13 +184,6 @@ plot(mean_sst_stack)
 
 ```{r}
 # Converting from Kelvin to Celcius
-
-# need to find function that works on SpatRaster
-# mutate and transmute not working
-
-#mean_sst_stack <- mean_sst_stack %>% 
- # transmute(mean_C = mean_sst_stack$mean - 273.15)
-
 mean_sst_stack_c <- mean_sst_stack - 273.15 
 mean_sst_stack_c
 ```
@@ -246,7 +225,7 @@ In order to find suitable locations for marine aquaculture, we'll need to find l
 
 ```{r}
 # SST oyster locations
-# reclassification matrix: binary raster where sst 11:30 degrees C = 1
+# reclassification matrix: binary raster where sst 11:30 degrees C = 1 (only show oyster friendly areas_)
 rcl <- matrix(c(-Inf, 11, NA,
                 11, 30, 1,
                 30, Inf, NA), 
@@ -264,14 +243,14 @@ plot(rcl_sst,
 
 ```{r}
 # depth oyster locations
-# reclassification matrix: binary raster where sst 0:70 ft C = 1
+# reclassification matrix: binary raster where sst 0:70 ft C = 1 (only show oyster friendly areas)
 rcl2 <- matrix(c(-Inf, -70, NA,
                  -70, 0, 1,
                  0, Inf, NA), 
               ncol = 3,
               byrow = TRUE)
 
-# reclassify tif
+# reclassify depth tif to only show oyster friendly areas
 rcl_depth <- classify(depth_resampled, rcl = rcl2)
 
 plot(rcl_depth)
@@ -282,12 +261,12 @@ plot(rcl_depth)
     -   hint: create an overlay using the `lapp()` function multiplying cell values
 
 ```{r include=TRUE}
-# creating a function
+# creating a function to multiply cell values 
 fun = function(x,y) {
   return(x*y)
 }
 
-# combining spatrasters
+# creating a spatraster overlay by multiplying raster cell values
 oyster_homes <- lapp(c(rcl_sst, rcl_depth),
                      fun = fun)
 
@@ -327,7 +306,7 @@ eez <- rasterize(x = wc_regions_clean,
 # make a mask
 oyster_mask <- mask(eez, oyster_homes)
 
-# crop vector data
+# cropped vector data
 EEZ <- crop(oyster_mask, eez)
 
 # plot 
@@ -339,7 +318,7 @@ plot(EEZ)
 # area of grid cells of west coast regions
 cell_area <- cellSize(eez)
 
-# calculate west coast areain rgns
+# calculate west coast areain rgns total area
 eez_zonal_stats <- zonal(cell_area,
                      eez,
                      fun = 'sum',
@@ -364,12 +343,150 @@ EEZ_zonal_stats
     -   hint it might be helpful to join the suitable area by region onto the EEZ vector data
 
 ```{r include=TRUE}
-# percentage suitable
-#suitable_percentage <- EEZ %>% 
-  #append(EEZ_zonal_stats$area / eez_zonal_stats$area * 100)
-
+# find percentage suitable areas
 # creating a column for percent of suitable areas zonal stats
 zonal_stats <- EEZ_zonal_stats %>%
+  rename(suitable_area = area) %>%
+  add_column(eez_zonal_stats$area) %>%
+  rename(total_area = 'eez_zonal_stats$area') %>%
+  mutate(pct_suitable = ((suitable_area/total_area)*100)) 
+
+# confirm it did what we wanted
+zonal_stats
+
+# rasterize zonal stats & combine w/ og wcr data
+zonal_stats_rast <- left_join(wc_regions_clean,
+                              zonal_stats,
+                              by = 'rgn')
+glimpse(zonal_stats_rast)
+```
+
+#### Visualize results (5 points)
+
+Now that we have results, we need to present them!
+
+Create the following maps:
+
+-   total suitable area by region
+
+-   percent suitable area by region
+
+Include:
+
+-   legible legends\
+-   updated color aesthetics\
+-   basemap\
+
+```{r include=TRUE}
+tmap_mode('view')
+
+tm_shape(zonal_stats_rast) +
+  tm_basemap(group = 'suitable_area') +
+  tm_polygons()
+
+
+
+ tm_shape(no_blackout) + 
+  tm_polygons(fill = "median_income", 
+          title = "Median Income ($)",
+          palette = "magma") +
+  tm_borders() +
+  tm_title(text = "Median Income for Census Tracts Without Blackouts") +
+   tm_scalebar(position = c('right','bottom')) + 
+  tm_compass( type = 'rose', 
+              lw = 0.,
+              size = 2) 
+
+```
+
+```{r}
+p1 <- ggplot(data = cpad_super) +
+  geom_sf(aes(color = access_typ,
+              fill = access_typ)) +
+  theme_bw() +
+  labs( color = "Access Type",     # need to put both or you get two legends
+        fill = "Access Type") +
+  annotation_scale(plot_unit = "km") + # this scale factor is very inaccurate
+  annotaiton_north_arrow(
+    location = 'tr',
+    style = ggspatial::north_arrow_nautical(
+      fill = c('grey40', 'white'),
+      line_col = ('grey20')
+    )
+  ) +
+  coord_sf() +# this sets coordinate system so it's following spatial and not catesian. best to add incase geom_sf doesn't properly call it on the backend 
+  scale_color_viridis_d() +
+  scale_fill_viridis_d()
+```
+
+
+#### Broaden your workflow! (40 points)
+
+Now that you've worked through the solution for one group of species, let's update your workflow to work for other species. Please create a function that would allow you to reproduce your results for other species. Your function should be able to do the following:\
+
+-   accept temperature and depth ranges and species name as inputs\
+-   create maps of total suitable area and percent suitable area per EEZ with the species name in the title\
+
+```{r}
+#------------------------------------------------------------------------Maxtrix & reclassification
+# SST oyster locations
+# reclassification matrix: binary raster where sst 11:30 degrees C = 1 (only show squid friendly areas_)
+rcl3 <- matrix(c(-Inf, 11, NA,
+                11, 30, 1,
+                30, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify tif
+rcl_sst2 <- classify(mean_sst_stack_c, rcl = rcl3)
+
+# visualize 
+plot(rcl_sst2,
+     col = "pink")
+
+# depth oyster locations
+# reclassification matrix: binary raster where sst 0:70 ft C = 1 (only show squid friendly areas)
+rcl4 <- matrix(c(-Inf, -70, NA,
+                 -70, 0, 1,
+                 0, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify depth tif to only show oyster friendly areas
+rcl_depth2 <- classify(depth_resampled, rcl = rcl4)
+
+plot(rcl_depth2)
+
+#--------------------------------------------------------------------------Overlaying rasters
+# creating a spatraster overlay by multiplying raster cell values
+squid_homes <- lapp(c(rcl_sst2, rcl_depth2),
+                     fun = fun)
+
+plot(squid_homes)
+#--------------------------------------------------------------------------Masking for squid friendly areas
+# combining and filtering for oyster areas
+squid_zones <- extract(squid_homes, wc_regions_clean) # spatraster, vector with points we want to extract
+
+# logical vector out of list
+squid_zones_vector <- unlist(squid_zones)
+
+# squid mask adjusted to reflect suitable wc regions turned into boolean
+squid_homes[] <- NA
+squid_homes[squid_zones_vector] <- 1
+
+# make a mask
+squid_mask <- mask(eez, squid_homes)
+
+# cropped vector data
+EEZ2 <- crop(squid_mask, eez)
+
+# plot 
+plot(EEZ2)
+
+#--------------------------------------------------------------------------Zonal stats 
+# find percentage suitable areas
+# creating a column for percent of suitable areas zonal stats
+zonal_stats2 <- EEZ_zonal_stats %>%
   rename(suitable_area = area) %>%
   add_column(eez_zonal_stats$area) %>%
   rename(total_area = 'eez_zonal_stats$area') %>%
@@ -382,53 +499,58 @@ zonal_stats
 zonal_stats_rast <- left_join(wc_regions_clean,
                               zonal_stats,
                               by = 'rgn')
-# combine zonal stats and  
-plot(zonal_stats_rast)
-  #st_join(EEZ,
-   #                         zonal_stats, 
-    #                        left = TRUE)
+glimpse(zonal_stats_rast)
 
-#suitable_percentage
 ```
-
-#### Visualize results (5 points)
-
-Now that we have results, we need to present them!
-
-Create the following maps:
-
--   total suitable area by region
 
 ```{r}
-# joining by total suitable region
-eez_percentage <- cbind(wc_regions_clean,
-                        suitable_percentage)
+#------------------------------------------------------------------------Maxtrix & reclassification
+# SST oyster locations
+# reclassification matrix: binary raster where sst 11:30 degrees C = 1 (only show squid friendly areas_)
+rcl3 <- matrix(c(-Inf, 11, NA,
+                11, 30, 1,
+                30, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify tif
+rcl_sst2 <- classify(mean_sst_stack_c, rcl = rcl3)
+
+# visualize 
+plot(rcl_sst2,
+     col = "pink")
+
+# depth oyster locations
+# reclassification matrix: binary raster where sst 0:70 ft C = 1 (only show squid friendly areas)
+rcl4 <- matrix(c(-Inf, -70, NA,
+                 -70, 0, 1,
+                 0, Inf, NA), 
+              ncol = 3,
+              byrow = TRUE)
+
+# reclassify depth tif to only show oyster friendly areas
+rcl_depth2 <- classify(depth_resampled, rcl = rcl4)
+
+plot(rcl_depth2)
+
+
+squid_areas <- function(polygon, raster, m_layer, m_label) {
+  #raserize polygon by layer -- this gives us resolution and data on layers
+  id_rast = rasterize(polygon, raster, field = 'suid_nma')
+
+   # do mean zonal stats, double << assignment operater allows output to be "global" vs others that are only accessible using tis function
+  zonal_layer <<- zonal(raster, id_rast, fun = "mean", na.rm = TRUE)                   
+  
+  # join withpolygon database
+  poly_join <<- full_join(polygon, zonal_layer) %>% 
+    select(suid_na, gHM, paste(my_layer))            # paste this as a recognizable layer to access
+}
+
+
+  # create boxplot based on layer
+  p1 <- ggplot(poly_join) 
 ```
 
--   percent suitable area by region
-
-```{r}
-# joining by region on vector data suitable %
-eez_area <- cbind(wc_regions_clean,
-                  suitable_percentage)
-```
-
-Include:
-
--   legible legends\
--   updated color aesthetics\
--   basemap\
-
-```{r include=TRUE}
-
-```
-
-#### Broaden your workflow! (40 points)
-
-Now that you've worked through the solution for one group of species, let's update your workflow to work for other species. Please create a function that would allow you to reproduce your results for other species. Your function should be able to do the following:\
-
--   accept temperature and depth ranges and species name as inputs\
--   create maps of total suitable area and percent suitable area per EEZ with the species name in the title\
 
 Run your function for a species of your choice! You can find information on species depth and temperature requirements on [SeaLifeBase](https://www.sealifebase.ca/search.php). Remember, we are thinking about the potential for marine aquaculture, so these species should have some reasonable potential for commercial consumption.
 
