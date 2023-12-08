@@ -378,9 +378,11 @@ zonal_stats <- EEZ_zonal_stats %>%
 # confirm it did what we wanted
 zonal_stats
 
-# rasterize zonal stats
-zonal_stats_rast <- c(EEZ, zonal_stats)
-  
+# rasterize zonal stats & combine w/ og wcr data
+zonal_stats_rast <- left_join(wc_regions_clean,
+                              zonal_stats,
+                              by = 'rgn')
+# combine zonal stats and  
 plot(zonal_stats_rast)
   #st_join(EEZ,
    #                         zonal_stats, 
