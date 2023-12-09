@@ -279,6 +279,10 @@ We want to determine the total suitable area within each EEZ in order to rank zo
 
 -   select suitable cells within West Coast EEZs
 
+HELP PLS I THINK THE ISSUE MAY HAVE STARTED UP HERE:
+
+but my check makes me feel like it was done correctly, am i being deceived?
+
 ```{r}
 # combining and filtering for oyster areas
 oyster_zones <- extract(oyster_homes, wc_regions_clean) # spatraster, vector with points we want to extract
@@ -304,7 +308,9 @@ if (
 ```
 
 -   find the total suitable area within each EEZ
--   hint: it might be helpful to rasterize the EEZ data
+    -   hint: it might be helpful to rasterize the EEZ data
+
+BUT THE ISSUE IS MOST OBSERVED HERE:
 
 ```{r}
 # rasterize wc region data
@@ -406,7 +412,7 @@ tmap_mode('plot')
 #Create a map to plot the suitable area in km^2
 tm_shape(zonal_stats_rast) +
   tm_polygons(fill = 'suitable_area', 
-              fill_alpha = 0.6,                                             # Add geometry and opacity
+              fill_alpha = 0.6, # Add geometry, opacity, lable 
               fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
                                     values = 'BuPu'),                       # Add Color scheme
               fill.legend = tm_legend(title = 'Suitable Area (km^2)')) +     # Add legend title
@@ -416,13 +422,8 @@ tm_shape(zonal_stats_rast) +
 
 
 
-#tm_shape(no_blackout) + 
-#tm_polygons(fill = "median_income", 
-#       title = "Median Income ($)",
-#      palette = "magma") +
 #  tm_borders() +
-# tm_title(text = "Median Income for Census Tracts Without Blackouts") +
-# tm_scalebar(position = c('right','bottom')) + 
+
 #  tm_compass( type = 'rose', 
 #             lw = 0.,
 #            size = 2) 
@@ -464,7 +465,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     ncol = 3, 
     byrow = TRUE)
   
-  sst_species <- reclassify(mean_sst,
+  sst_species <- raster::reclassify(mean_sst_stack_c,
                             rcl = rcl_temp)
   # now the same for depth 
   rcl_depth = matrix(
@@ -474,7 +475,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     ncol = 3, 
     byrow = TRUE)
   
-  depth_species <- reclassify(depth,
+  depth_species <- raster::reclassify(depth,
                               rcl = rcl_depth)
   # overlay the spatrasters 
   species_homes <- lapp(sst_species, 
@@ -533,7 +534,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                 fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
                                       values = 'BuPu'),                       # Add Color scheme
                 fill.legend = tm_legend(title = 'Suitable Area (km^2)')) +    # Add legend title
-    tm_title(text = 'Suitable Area by Region: Oysters') +                     # Add figure title
+    tm_title(text = 'Suitable Area by Region: Species') +                     # Add figure title
     tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
     tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
   
@@ -544,7 +545,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                 fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000),            # Add breaks, and legend title
                                       values = 'BuPu'),                                  # Add Color scheme
                 fill.legend = tm_legend(title = 'Percent Suitable Area (km^2)')) +       # Add legend title
-    tm_title(text = 'Percent Suitable Area by Region: Oysters') +                        # Add figure title
+    tm_title(text = 'Percent Suitable Area by Region: Species') +                        # Add figure title
     tm_scalebar(position = c('left','bottom')) +                                         # Add a scalebar
     tm_basemap(server = 'OpenStreetMap')                                                 # Add a basemap
   
@@ -554,13 +555,12 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   )
 }
 
-
 # Run function for species
-species_total_suitable_area("Species Name",
-                            temp_min = , 
-                            temp_max = , 
-                            depth_min = ,
-                            depth_max = )
+species_total_suitable_areas("Species Name",
+                            temp_min = 2, 
+                            temp_max = 22, 
+                            depth_min = -22,
+                            depth_max = 0)
 ```
 
 Run your function for a species of your choice! You can find information on species depth and temperature requirements on [SeaLifeBase](https://www.sealifebase.ca/search.php). Remember, we are thinking about the potential for marine aquaculture, so these species should have some reasonable potential for commercial consumption.
