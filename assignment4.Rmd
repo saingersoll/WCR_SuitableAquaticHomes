@@ -251,7 +251,8 @@ rcl2 <- matrix(c(-Inf, -70, NA,
 # reclassify depth tif to only show oyster friendly areas
 rcl_depth <- classify(depth_resampled, rcl = rcl2)
 
-plot(rcl_depth)
+plot(rcl_depth,
+     col = 'hotpink')
 
 ```
 
@@ -268,7 +269,8 @@ fun = function(x,y) {
 oyster_homes <- lapp(c(rcl_sst, rcl_depth),
                      fun = fun)
 # visualize
-plot(oyster_homes)
+plot(oyster_homes,
+     col = 'hotpink')
 ```
 
 #### Determine the most suitable EEZ (20 points)
@@ -297,7 +299,7 @@ if (all(
   print("Cool beans! The code ran successfully: our mask only contains values of 1 and NA.")
 } else {
   stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
-  }
+}
 ```
 
 -   find the total suitable area within each EEZ
@@ -307,12 +309,17 @@ if (all(
 eez <- rasterize(x = wc_regions_clean, 
                  y = mean_sst_stack_c,
                  field = 'rgn')                   # field to rasterize by rgn 
+# quick visual check
+plot(eez)
 
 # make a mask
 oyster_mask <- mask(eez, oyster_homes)
 
 # cropped vector data
 EEZ <- crop(oyster_mask, eez)
+
+# Somethings not working right here
+plot(EEZ)
 ```
 
 -   find area of grid cells
@@ -351,7 +358,7 @@ zonal_stats <- EEZ_zonal_stats %>%
   rename(suitable_area_km2 = area) %>%
   add_column(eez_zonal_stats$area) %>%
   rename(total_area_km2 = 'eez_zonal_stats$area') %>%
-  mutate(pct_suitable = ((suitable_area/total_area)*100)) 
+  mutate(pct_suitable = ((suitable_area_km2/total_area_km2)*100)) 
 
 # confirm it did what we wanted
 zonal_stats
@@ -419,32 +426,45 @@ tm_shape(zonal_stats_rast) +
 ```
 
 ```{r}
-p1 <- ggplot(data = cpad_super) +
-  geom_sf(aes(color = access_typ,
-              fill = access_typ)) +
-  theme_bw() +
-  labs( color = "Access Type",     # need to put both or you get two legends
-        fill = "Access Type") +
-  annotation_scale(plot_unit = "km") + # this scale factor is very inaccurate
-  annotaiton_north_arrow(
-    location = 'tr',
-    style = ggspatial::north_arrow_nautical(
-      fill = c('grey40', 'white'),
-      line_col = ('grey20')
-    )
-  ) +
-  coord_sf() +# this sets coordinate system so it's following spatial and not catesian. best to add incase geom_sf doesn't properly call it on the backend 
-  scale_color_viridis_d() +
-  scale_fill_viridis_d()
-```
+# initiate tmap plottings
+tmap_mode('plot')
+#Create a map to plot the suitable area in km^2
+tm_shape(zonal_stats_rast) +
+  tm_polygons(fill = 'pct_suitable_km2', 
+              fill_alpha = 0.6,                                             # Add geometry and opacity
+              fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
+                                    values = 'BuPu'),                       # Add Color scheme
+              fill.legend = tm_legend(title = 'Percent Suitable Area (km^2)')) +     # Add legend title
+  tm_title(text = 'Percent Suitable Area by Region: Oysters') +                     # Add figure title
+  tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
+  tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
 
+```
 
 #### Broaden your workflow! (40 points)
 
 Now that you've worked through the solution for one group of species, let's update your workflow to work for other species. Please create a function that would allow you to reproduce your results for other species. Your function should be able to do the following:\
 
 -   accept temperature and depth ranges and species name as inputs\
--   create maps of total suitable area and percent suitable area per EEZ with the species name in the title\
+-   create maps of total suitable area and percent suitable area per EEZ with the species name in the title
+```{r}
+squid_areas <- function(depth_resampled, mean_sst_stack_c, squid_layer) {
+  #raserize polygon by layer -- this gives us resolution and data on layers
+  id_rast = rasterize(polygon, raster, field = 'suid_nma')
+
+   # do mean zonal stats, double << assignment operater allows output to be "global" vs others that are only accessible using tis function
+  zonal_layer <<- zonal(raster, id_rast, fun = "mean", na.rm = TRUE)                   
+  
+  # join withpolygon database
+  poly_join <<- full_join(polygon, zonal_layer) %>% 
+    select(suid_na, gHM, paste(squid_layer))            # paste this as a recognizable layer to access
+}
+
+
+  # create boxplot based on layer
+  p1 <- ggplot(poly_join) 
+```
+
 
 ```{r}
 #------------------------------------------------------------------------Maxtrix & reclassification
