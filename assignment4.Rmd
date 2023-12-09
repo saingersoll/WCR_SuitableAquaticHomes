@@ -100,14 +100,14 @@ plot(wc_regions_clean["rgn_id"])
 
 ```{r}
 # Reading in rasters
-sst_08 <- read_stars("data/average_annual_sst_2008.tif") 
-sst_09 <- read_stars("data/average_annual_sst_2009.tif")
-sst_10 <- read_stars("data/average_annual_sst_2010.tif")
-sst_11 <- read_stars("data/average_annual_sst_2011.tif")
-sst_12 <- read_stars("data/average_annual_sst_2012.tif")
+#sst_08 <- read_stars("data/average_annual_sst_2008.tif") 
+#sst_09 <- read_stars("data/average_annual_sst_2009.tif")
+#sst_10 <- read_stars("data/average_annual_sst_2010.tif")
+#sst_11 <- read_stars("data/average_annual_sst_2011.tif")
+#sst_12 <- read_stars("data/average_annual_sst_2012.tif")
 
 # Checkng CRS, shows evidence ofno projection
-st_crs(sst_08)
+#st_crs(sst_08)
 ```
 
 -   combine SST rasters into a raster stack
@@ -171,9 +171,7 @@ Next, we need process the SST and depth data so that they can be combined. In th
 -   find the mean SST from 2008-2012
 
 ```{r}
-# Finding the mean
-
-# Mean of the overall stack 
+# Finding the mean of the stack layers
 mean_sst_stack <- mean(sst_stack, na.rm = TRUE)
 
 plot(mean_sst_stack)
@@ -269,7 +267,7 @@ fun = function(x,y) {
 # creating a spatraster overlay by multiplying raster cell values
 oyster_homes <- lapp(c(rcl_sst, rcl_depth),
                      fun = fun)
-
+# visualize
 plot(oyster_homes)
 ```
 
@@ -285,33 +283,38 @@ oyster_zones <- extract(oyster_homes, wc_regions_clean) # spatraster, vector wit
 
 # logical vector out of list
 oyster_zones_vector <- unlist(oyster_zones)
-```
 
-```{r}
-# Oyster mask adjusted to reflect suitable wc regions
+# oyster mask adjusted to reflect suitable wc regions
 oyster_homes[] <- NA
 oyster_homes[oyster_zones_vector] <- 1
+
+# Check that all values in oyster mask are either 1 or NA
+if (all(
+  unique(oyster_homes) %in% c(1, NA)
+   )
+  ) 
+{
+  print("Cool beans! The code ran successfully: our mask only contains values of 1 and NA.")
+} else {
+  stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
+  }
 ```
 
--   find the total suitable area within each EEZ\
+-   find the total suitable area within each EEZ
     -   hint: it might be helpful to rasterize the EEZ data
-
 ```{r}
 # rasterize wc region data
 eez <- rasterize(x = wc_regions_clean, 
                  y = mean_sst_stack_c,
-                 field = 'rgn')
-# field to rasterize by rgn 
+                 field = 'rgn')                   # field to rasterize by rgn 
 
 # make a mask
 oyster_mask <- mask(eez, oyster_homes)
 
 # cropped vector data
 EEZ <- crop(oyster_mask, eez)
-
-# plot 
-plot(EEZ)
 ```
+
 -   find area of grid cells
 
 ```{r}
@@ -338,7 +341,6 @@ EEZ_zonal_stats <- zonal(EEZ_cell_area,
 # check
 EEZ_zonal_stats
 ```
-
 -   find the percentage of each zone that is suitable\
     -   hint it might be helpful to join the suitable area by region onto the EEZ vector data
 
@@ -346,13 +348,23 @@ EEZ_zonal_stats
 # find percentage suitable areas
 # creating a column for percent of suitable areas zonal stats
 zonal_stats <- EEZ_zonal_stats %>%
-  rename(suitable_area = area) %>%
+  rename(suitable_area_km2 = area) %>%
   add_column(eez_zonal_stats$area) %>%
-  rename(total_area = 'eez_zonal_stats$area') %>%
+  rename(total_area_km2 = 'eez_zonal_stats$area') %>%
   mutate(pct_suitable = ((suitable_area/total_area)*100)) 
 
 # confirm it did what we wanted
 zonal_stats
+
+# check calculated percents are 0:100
+if (
+  any(zonal_stats$pct_suitable < 0 | zonal_stats$pct_suitable > 100)
+  ) 
+  {
+  stop("Uh oh! There's an error in the code: at least one percent area is not 0:100.")
+} else {
+  "Cool beans! The code ran successfully: all percents are within the valid range."
+} 
 
 # rasterize zonal stats & combine w/ og wcr data
 zonal_stats_rast <- left_join(wc_regions_clean,
@@ -378,24 +390,31 @@ Include:
 -   basemap\
 
 ```{r include=TRUE}
-tmap_mode('view')
-
+# initiate tmap plottings
+tmap_mode('plot')
+#Create a map to plot the suitable area in km^2
 tm_shape(zonal_stats_rast) +
-  tm_basemap(group = 'suitable_area') +
-  tm_polygons()
+  tm_polygons(fill = 'suitable_area', 
+              fill_alpha = 0.6,                                             # Add geometry and opacity
+              fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
+                                    values = 'BuPu'),                       # Add Color scheme
+              fill.legend = tm_legend(title = 'Suitable Area (km^2)')) +     # Add legend title
+  tm_title(text = 'Suitable Area by Region: Oysters') +                     # Add figure title
+  tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
+  tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
 
 
 
- tm_shape(no_blackout) + 
-  tm_polygons(fill = "median_income", 
-          title = "Median Income ($)",
-          palette = "magma") +
-  tm_borders() +
-  tm_title(text = "Median Income for Census Tracts Without Blackouts") +
-   tm_scalebar(position = c('right','bottom')) + 
-  tm_compass( type = 'rose', 
-              lw = 0.,
-              size = 2) 
+ #tm_shape(no_blackout) + 
+  #tm_polygons(fill = "median_income", 
+   #       title = "Median Income ($)",
+    #      palette = "magma") +
+#  tm_borders() +
+ # tm_title(text = "Median Income for Census Tracts Without Blackouts") +
+  # tm_scalebar(position = c('right','bottom')) + 
+#  tm_compass( type = 'rose', 
+ #             lw = 0.,
+  #            size = 2) 
 
 ```
 
