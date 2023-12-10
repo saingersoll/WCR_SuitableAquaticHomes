@@ -442,7 +442,7 @@ Now that you've worked through the solution for one group of species, let's upda
 
 ```{r}
 # streamlined function for any species
-species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min, depth_max) {
+species_total_suitable_areas <- function(temp_min, temp_max, depth_min, depth_max) {
   # vectorize & reclassify data to be within suitable temp & depth range for desired species
   # sea surface temp is first
   rcl_temp <- matrix(
@@ -465,7 +465,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   depth_species <- classify(depth_resampled,
                              rcl = rcl_depth)
   # overlay the spatrasters 
-  species_homes <- lapp(c(sst_species, depth_species),
+  species_homes <<- lapp(c(sst_species, depth_species),
                         fun = fun)
    
   # rasterize wc region data
@@ -474,19 +474,10 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                     field = 'rgn')                   # field to rasterize by rgn 
   
    # make a mask
-  species_mask <- mask(eez, oyster_homes)
+  species_mask <- mask(eez, species_homes)
   
   species_cropped <<- crop(species_mask, eez)
   
-  # Check that function is running properly  
-  #if (
-   # all(
-    #  unique(species_mask) %in% c(1, NA))
-#  ) 
- # {
-  #} else {stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
-  #}
-
  # area of grid cells of west coast regions
   cell_area <<- cellSize(eez)
   
@@ -496,11 +487,11 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                             fun = 'sum',
                             na.rm = TRUE)
   # total suitable cell area
-  suitable_cell_area <<- cellSize(species_mask)
+  suitable_cell_area <<- cellSize(species_cropped)
   
   # calculate west coast areain rgns total area
   suitable_zonal_stats <<- zonal(suitable_cell_area,
-                                 species_mask,
+                                 species_cropped,
                                  fun = 'sum',
                                  na.rm = TRUE)
   
@@ -513,8 +504,6 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     mutate(pct_suitable = ((suitable_area_m2/total_area_m2)*100)) 
   
   # check calculated percents are 0:100
-  
-  # confirm code is running as expected
   if (
     any(
       species_zonal_stats$pct_suitable < 0 | species_zonal_stats$pct_suitable > 100)
@@ -529,7 +518,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                                 by = 'rgn')
   
   # total suitiable areas map for species of interest (soi)
-  tmap_mode(c("plot","plot"))
+  tmap_mode("plot")
   total_area_species_map <<- tm_shape(species_zonal_stats_rast) +
     tm_polygons(fill = 'suitable_area_m2',
                 fill_alpha = 0.6,
@@ -541,7 +530,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     tm_basemap(server = 'OpenStreetMap')                                     # Add a basemap
   
   #Create a map to plot the percent of suitable area 
- # tmap_mode("plot")
+  tmap_mode("plot")
   percent_area_species_map <<- tm_shape(species_zonal_stats_rast) +
     tm_polygons(fill = 'pct_suitable', 
                 fill_alpha = 0.6,                             
@@ -560,8 +549,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
 # return( tmap_arrange(total_area_species_map, percent_area_species_map)
 
 # Run function for species
-species_total_suitable_areas("Squid",
-                             temp_min = 10, 
+species_total_suitable_areas(temp_min = 10, 
                              temp_max = 16, 
                              depth_min = -180,
                              depth_max = -20)
