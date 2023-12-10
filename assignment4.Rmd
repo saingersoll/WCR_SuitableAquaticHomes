@@ -400,7 +400,7 @@ tm_shape(zonal_stats_rast) +
   tm_polygons(fill = 'suitable_area_m2',
               fill_alpha = 0.6,
               fill.scale = tm_scale(breaks = c(0,1.0e+9,2.0e+9,3.0e+9,4.0e+9,5.0e+9)), 
-              values = 'SunsetDark',                                             # bins 
+              fill.palette = 'Red-Purple',                                             # bins 
               fill.legend = tm_legend(title = 'Area (m^2)')) +    # Add legend title
   tm_title(text = 'Oysters Suitable Area by Region') +                     # Add figure title
   tm_scalebar(position = c('left','bottom')) +                             # Add a scalebar
@@ -468,7 +468,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   species_homes <- lapp(c(sst_species, depth_species),
                          fun = fun)
   
-  species_mask <- crop(species_homes, eez)
+  species_mask <<- crop(species_homes, eez)
   
   # Check that function is running properly  
   if (
@@ -478,24 +478,30 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   {
   } else {stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
   }
+  # rasterize wc region data
+  eez <<- rasterize(x = wc_regions_clean, 
+                    y = mean_sst_stack_c,
+                    field = 'rgn')                   # field to rasterize by rgn 
+ # area of grid cells of west coast regions
+  cell_area <<- cellSize(eez)
   
   # calculate west coast area in rgns total area
-  eez_zonal_stats <- zonal(cell_area,
-                           eez,
-                           fun = 'sum',
-                           na.rm = TRUE)
+  eez_zonal_stats <<- zonal(cell_area,
+                            eez,
+                            fun = 'sum',
+                            na.rm = TRUE)
   # total suitable cell area
-  suitable_cell_area <- cellSize(species_mask)
+  suitable_cell_area <<- cellSize(species_mask)
   
   # calculate west coast areain rgns total area
-  suitable_zonal_stats <- zonal(suitable_cell_area,
-                                eez,
+  suitable_zonal_stats <<- zonal(suitable_cell_area,
+                                species_mask,
                                 fun = 'sum',
                                 na.rm = TRUE)
   
   # find percentage suitable areas
   # creating a column for percent of suitable areas zonal stats
-  species_zonal_stats <- suitable_zonal_stats %>%
+  species_zonal_stats <<- suitable_zonal_stats %>%
     rename(suitable_area_m2 = area) %>%
     add_column(eez_zonal_stats$area) %>%
     rename(total_area_m2 = 'eez_zonal_stats$area') %>%
@@ -512,10 +518,14 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     stop("Uh oh! There is an error in the code: at least one percent area is not 0:100.")
   } else {}
   
+  # rasterize zonal stats & combine w/ og wcr data
+  species_zonal_stats_rast <<- left_join(wc_regions_clean,
+                                species_zonal_stats,
+                                by = 'rgn')
+  
   # total suitiable areas map for species of interest (soi)
-  tmap_mode('plot')
-  #Create a map to plot the suitable area in m^2
-  total_area_species_map <- tm_shape(species_zonal_stats) +
+  tmap_mode(c("plot","plot"))
+  total_area_species_map <<- tm_shape(species_zonal_stats_rast) +
     tm_polygons(fill = 'suitable_area_m2',
                 fill_alpha = 0.6,
                 palette = 'BuPu',
@@ -526,8 +536,8 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     tm_basemap(server = 'OpenStreetMap')                                     # Add a basemap
   
   #Create a map to plot the percent of suitable area 
-  tmap_mode('plot')
-  percent_area_species_map <- tm_shape(species_zonal_stats) +
+ # tmap_mode("plot")
+  percent_area_species_map <<- tm_shape(species_zonal_stats_rast) +
     tm_polygons(fill = 'pct_suitable', 
                 fill_alpha = 0.6,                             
                 values = 'SunsetDark',
@@ -538,16 +548,16 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     tm_basemap(server = 'OpenStreetMap')    
   # display maps 
   return(
-    tmap_arrange(total_area_species_map, percent_area_species_map)
+    list(total_area_species_map, percent_area_species_map)
   )
 }
 
-# return(list(area_plot,pct_plot))
+# return( tmap_arrange(total_area_species_map, percent_area_species_map)
 
 # Run function for species
 species_total_suitable_areas("Squid",
                              temp_min = 10, 
-                             temp_max = 15, 
+                             temp_max = 16, 
                              depth_min = -180,
                              depth_max = -20)
 ```
