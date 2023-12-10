@@ -74,6 +74,7 @@ library(tmap)
 library(stars)
 library(raster)
 library(here)
+library(maptiles)
 rm(list = ls())
 setwd(here())
 ```
@@ -98,15 +99,15 @@ plot(wc_regions_clean["rgn_id"])
     -   `average_annual_sst_2011.tif`\
     -   `average_annual_sst_2012.tif`
 
-```{r}
-# Reading in rasters
+```{r echo = TRUE}
+# Reading in rasters and inspecting CRS
 #sst_08 <- read_stars("data/average_annual_sst_2008.tif") 
 #sst_09 <- read_stars("data/average_annual_sst_2009.tif")
 #sst_10 <- read_stars("data/average_annual_sst_2010.tif")
 #sst_11 <- read_stars("data/average_annual_sst_2011.tif")
 #sst_12 <- read_stars("data/average_annual_sst_2012.tif")
 
-# Checkng CRS, shows evidence ofno projection
+# Checkng CRS, shows evidence of no projection
 #st_crs(sst_08)
 ```
 
@@ -290,15 +291,10 @@ if (
 We want to determine the total suitable area within each EEZ in order to rank zones by priority. To do so, we need to find the total area of suitable locations within each EEZ.
 
 -   select suitable cells within West Coast EEZs
-
-HELP PLS I THINK THE ISSUE MAY HAVE STARTED UP HERE:
-
-but my check makes me feel like it was done correctly, am i being deceived?
-
+-   
 -   find the total suitable area within each EEZ
     -   hint: it might be helpful to rasterize the EEZ data
-
-BUT THE ISSUE IS MOST OBSERVED HERE:
+-   
 
 ```{r}
 # rasterize wc region data
@@ -375,6 +371,8 @@ if (
 zonal_stats_rast <- left_join(wc_regions_clean,
                               zonal_stats,
                               by = 'rgn')
+# quick assessment to aid in visual bins
+summary(zonal_stats_rast)
 ```
 
 #### Visualize results (5 points)
@@ -392,60 +390,46 @@ Include:
 -   legible legends\
 -   updated color aesthetics\
 -   basemap\
+
+### Map of Suitable Areas for Oysters in West Coast Region, USA (m2)
+
 ```{r}
 tmap_mode('plot')
-#Create a map to plot the suitable area in km^2
+#Create a map to plot the suitable area in m^2
 tm_shape(zonal_stats_rast) +
-  tm_polygons(fill = 'suitable_area',
+  tm_polygons(fill = 'suitable_area_m2',
               fill_alpha = 0.6,
-              palette = 'BuPu',                      # Add Color scheme# Add geometry, opacity, lable
-               # Add breaks, and legend title
-              fill.legend = tm_legend(title = ‘Suitable Area (m^2)’) +    # Add legend title
-  tm_title(text = ‘Suitable Area by Region: Oysters’) +                    # Add figure title
-  tm_scalebar(position = c(‘left’,‘bottom’)) +                             # Add a scalebar
-  tm_basemap(server = ‘OpenStreetMap’)                                     # Add a basemap
+              fill.scale = tm_scale(breaks = c(0,1.0e+9,2.0e+9,3.0e+9,4.0e+9,5.0e+9)), 
+              values = 'SunsetDark',                                             # bins 
+              fill.legend = tm_legend(title = 'Area (m^2)')) +    # Add legend title
+  tm_title(text = 'Oysters Suitable Area by Region') +                     # Add figure title
+  tm_scalebar(position = c('left','bottom')) +                             # Add a scalebar
+  tm_basemap(server = 'OpenStreetMap')                                     # Add a basemap
 ```
 
+### Percent of Suitable Areas for Oysters in West Coast Region, USA
 
-```{r include=TRUE}
-# initiate tmap plottings
-tmap_mode('plot')
-#Create a map to plot the suitable area in km^2
-tm_shape(zonal_stats_rast) +
-  tm_polygons(fill = 'suitable_area', 
-              fill_alpha = 0.6, 
-              palette = 'BuPu',
-              fill.legend = tm_legend(title = 'Suitable Area (m^2)') +     
-                
-              palette = 'BuPu',                       # Add Color scheme# Add geometry, opacity, lable 
-               # Add breaks, and legend title
-                # Add legend title
-  tm_title(text = 'Suitable Area by Region: Oysters') +                     # Add figure title
-  tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
-  tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
-
-
-
-#  tm_borders() +
-
-#  tm_compass( type = 'rose', 
-#             lw = 0.,
-#            size = 2) 
-
-```
 ```{r}
 # initiate tmap plottings
 tmap_mode('plot')
 #Create a map to plot the percent of suitable area 
 tm_shape(zonal_stats_rast) +
-  tm_polygons(fill = 'pct_suitable_m2', 
-              fill_alpha = 0.6,                                             # Add geometry and opacity
-               # Add breaks, and legend title
-                                    values = 'BuPu',                       # Add Color scheme
-              fill.legend = tm_legend(title = 'Percent Suitable Area (m^2)')) +     # Add legend title
-  tm_title(text = 'Percent Suitable Area by Region: Oysters') +                     # Add figure title
-  tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
-  tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
+  tm_polygons(fill = 'pct_suitable', 
+              fill_alpha = 0.6,                             
+              values = 'SunsetDark',
+              fill.scale = tm_scale(breaks = c(0, 0.25, 1.25, 2.25, 5, 100)), # bins 
+              fill.legend = tm_legend(title = 'Pct Suitable Areas')) +    
+  tm_title(text = 'Oysters Percent Suitable Area by Region') +                     
+  tm_scalebar(position = c('left','bottom')) +                             
+  tm_basemap(server = 'OpenStreetMap')                                    
+
+# Add polygons w/ colors associated w/ percent suitable areas
+# Add legend title
+# Add figure title
+# Add geometry and opacity
+# Add breaks, and legend title
+# Add a scalebar
+# Add a basemap
 
 ```
 
@@ -468,10 +452,10 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     ncol = 3, 
     byrow = TRUE)
   
-  sst_species <-classify(mean_sst_stack_c,
-                            rcl = rcl_temp)
+  sst_species <- classify(mean_sst_stack_c,
+                           rcl = rcl_temp)
   # now the same for depth 
-  rcl_depth = matrix(
+  rcl_depth <- matrix(
     c(-Inf, depth_min, NA,
       depth_min, depth_max, 1, 
       depth_max, Inf, NA), 
@@ -479,13 +463,12 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     byrow = TRUE)
   
   depth_species <- classify(depth_resampled,
-                              rcl = rcl_depth)
+                             rcl = rcl_depth)
   # overlay the spatrasters 
-  species_homes <- lapp(sst_species, 
-                        depth_species,
-                        fun = fun)
+  species_homes <- lapp(c(sst_species, depth_species),
+                         fun = fun)
   
-  species_mask <- crop(species_home, eez)
+  species_mask <- crop(species_homes, eez)
   
   # Check that function is running properly  
   if (
@@ -497,60 +480,62 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   }
   
   # calculate west coast area in rgns total area
-eez_zonal_stats <- zonal(cell_area,
-                         eez,
-                         fun = 'sum',
-                         na.rm = TRUE)
+  eez_zonal_stats <- zonal(cell_area,
+                           eez,
+                           fun = 'sum',
+                           na.rm = TRUE)
   # total suitable cell area
   suitable_cell_area <- cellSize(species_mask)
   
   # calculate west coast areain rgns total area
-suitable_zonal_stats <- zonal(suitable_cell_area,
-                         eez,
-                         fun = 'sum',
-                         na.rm = TRUE)
-
-# find percentage suitable areas
-# creating a column for percent of suitable areas zonal stats
-species_zonal_stats <- suitable_zonal_stats %>%
-  rename(suitable_area_m2 = area) %>%
-  add_column(eez_zonal_stats$area) %>%
-  rename(total_area_m2 = 'eez_zonal_stats$area') %>%
-  mutate(pct_suitable = ((suitable_area_m2/total_area_m2)*100)) 
-
-# check calculated percents are 0:100
-    
+  suitable_zonal_stats <- zonal(suitable_cell_area,
+                                eez,
+                                fun = 'sum',
+                                na.rm = TRUE)
+  
+  # find percentage suitable areas
+  # creating a column for percent of suitable areas zonal stats
+  species_zonal_stats <- suitable_zonal_stats %>%
+    rename(suitable_area_m2 = area) %>%
+    add_column(eez_zonal_stats$area) %>%
+    rename(total_area_m2 = 'eez_zonal_stats$area') %>%
+    mutate(pct_suitable = ((suitable_area_m2/total_area_m2)*100)) 
+  
+  # check calculated percents are 0:100
+  
   # confirm code is running as expected
   if (
     any(
-      eez_species_zonal_stats$'Percent Suitable' < 0 | eez_species_zonal_stats$'Percent Suitable' > 100)
+      species_zonal_stats$pct_suitable < 0 | species_zonal_stats$pct_suitable > 100)
   )
   {
     stop("Uh oh! There is an error in the code: at least one percent area is not 0:100.")
   } else {}
   
   # total suitiable areas map for species of interest (soi)
-  total_area_species_map <- tm_shape(eez_species_zonal_stats) +
-    tm_polygons(fill = 'suitable_area', 
-                fill_alpha = 0.6,                                             # Add geometry and opacity
-                #fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
-                                      values = 'BuPu'),                       # Add Color scheme
-                fill.legend = tm_legend(title = 'Suitable Area (km^2)')) +    # Add legend title
-    tm_title(text = 'Suitable Area by Region: Species') +                     # Add figure title
-    tm_scalebar(position = c('left','bottom')) +                              # Add a scalebar
-    tm_basemap(server = 'OpenStreetMap')                                      # Add a basemap
+  tmap_mode('plot')
+  #Create a map to plot the suitable area in m^2
+  total_area_species_map <- tm_shape(species_zonal_stats) +
+    tm_polygons(fill = 'suitable_area_m2',
+                fill_alpha = 0.6,
+                palette = 'BuPu',
+                fill.scale = tm_scale(breaks = c(0,1000000000,2000000000,3000000000,4000000000,5000000000)),               # bins 
+                fill.legend = tm_legend(title = 'Suitable Area (m^2)')) +    # Add legend title
+    tm_title(text = 'Squids Suitable Area by Region') +                      # Add figure title
+    tm_scalebar(position = c('left','bottom')) +                             # Add a scalebar
+    tm_basemap(server = 'OpenStreetMap')                                     # Add a basemap
   
   #Create a map to plot the percent of suitable area 
-  pct_area_species_map <<- tm_shape(eez_species_zonal_stats) +
-    tm_polygons(fill = 'pct_suitable_km2', 
-                fill_alpha = 0.6,                                                        # Add geometry and opacity
-                         # Add breaks, and legend title
-                                      values = 'BuPu'),                                  # Add Color scheme
-                fill.legend = tm_legend(title = 'Percent Suitable Area (km^2)')) +       # Add legend title
-    tm_title(text = 'Percent Suitable Area by Region: Species') +                        # Add figure title
-    tm_scalebar(position = c('left','bottom')) +                                         # Add a scalebar
-    tm_basemap(server = 'OpenStreetMap')                                                 # Add a basemap
-  
+  tmap_mode('plot')
+  percent_area_species_map <- tm_shape(species_zonal_stats) +
+    tm_polygons(fill = 'pct_suitable', 
+                fill_alpha = 0.6,                             
+                values = 'SunsetDark',
+                fill.scale = tm_scale(breaks = c(0, 0.25, 1.25, 2.25, 5, 100)), # bins
+                fill.legend = tm_legend(title = 'Pct Suitable Areas')) +    
+    tm_title(text = 'Squid Percent Suitable Area by Region') +                     
+    tm_scalebar(position = c('left','bottom')) +                             
+    tm_basemap(server = 'OpenStreetMap')    
   # display maps 
   return(
     tmap_arrange(total_area_species_map, percent_area_species_map)
@@ -560,11 +545,11 @@ species_zonal_stats <- suitable_zonal_stats %>%
 # return(list(area_plot,pct_plot))
 
 # Run function for species
-species_total_suitable_areas("Species Name",
-                            temp_min = 10, 
-                            temp_max = 15, 
-                            depth_min = -180,
-                            depth_max = -20)
+species_total_suitable_areas("Squid",
+                             temp_min = 10, 
+                             temp_max = 15, 
+                             depth_min = -180,
+                             depth_max = -20)
 ```
 
 Run your function for a species of your choice! You can find information on species depth and temperature requirements on [SeaLifeBase](https://www.sealifebase.ca/search.php). Remember, we are thinking about the potential for marine aquaculture, so these species should have some reasonable potential for commercial consumption.
