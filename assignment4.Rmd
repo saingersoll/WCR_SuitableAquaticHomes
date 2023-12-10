@@ -466,22 +466,27 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
                              rcl = rcl_depth)
   # overlay the spatrasters 
   species_homes <- lapp(c(sst_species, depth_species),
-                         fun = fun)
-  
-  species_mask <<- crop(species_homes, eez)
-  
-  # Check that function is running properly  
-  if (
-    all(
-      unique(species_mask) %in% c(1, NA))
-  ) 
-  {
-  } else {stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
-  }
+                        fun = fun)
+   
   # rasterize wc region data
   eez <<- rasterize(x = wc_regions_clean, 
                     y = mean_sst_stack_c,
                     field = 'rgn')                   # field to rasterize by rgn 
+  
+   # make a mask
+  species_mask <- mask(eez, oyster_homes)
+  
+  species_cropped <<- crop(species_mask, eez)
+  
+  # Check that function is running properly  
+  #if (
+   # all(
+    #  unique(species_mask) %in% c(1, NA))
+#  ) 
+ # {
+  #} else {stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
+  #}
+
  # area of grid cells of west coast regions
   cell_area <<- cellSize(eez)
   
@@ -495,9 +500,9 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   
   # calculate west coast areain rgns total area
   suitable_zonal_stats <<- zonal(suitable_cell_area,
-                                species_mask,
-                                fun = 'sum',
-                                na.rm = TRUE)
+                                 species_mask,
+                                 fun = 'sum',
+                                 na.rm = TRUE)
   
   # find percentage suitable areas
   # creating a column for percent of suitable areas zonal stats
