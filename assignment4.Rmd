@@ -468,7 +468,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     ncol = 3, 
     byrow = TRUE)
   
-  sst_species <- raster::classify(mean_sst_stack_c,
+  sst_species <-classify(mean_sst_stack_c,
                             rcl = rcl_temp)
   # now the same for depth 
   rcl_depth = matrix(
@@ -478,7 +478,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
     ncol = 3, 
     byrow = TRUE)
   
-  depth_species <- raster::classify(depth,
+  depth_species <- classify(depth_resampled,
                               rcl = rcl_depth)
   # overlay the spatrasters 
   species_homes <- lapp(sst_species, 
@@ -496,31 +496,30 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   } else {stop("Uh oh! There's an error in the code: our mask contains values other than 1 or NA.")
   }
   
-  # total cell area
-  total_cell_area <- cellStats(species_mask,
-                               stat = "sum",
-                               na.rm = TRUE)
-  # rasterize data  
-  total_cell_areas_raster <- raster(species_mask)
-  tot_cell_areas_raster[] <- total_cell_areas_raster
-  eez_species <- rasterize(eez, species_mask)
+  # calculate west coast area in rgns total area
+eez_zonal_stats <- zonal(cell_area,
+                         eez,
+                         fun = 'sum',
+                         na.rm = TRUE)
+  # total suitable cell area
+  suitable_cell_area <- cellSize(species_mask)
   
-  # tabulate zonal stats
-  # total suitable cell areas
-  total_suitable_areas <- zonal(tot_cell_areas_raster, 
-                                eez_species, 
-                                fun = sum, 
-                                na.rm = TRUE)
-  # percent suitable areas
-  pct_suitable_area_fun <- (total_suitable_areas / eez$area_m2) * 100
-  
-  eez_species_zonal_stats <<- cbind(eez, 
-                                    total_suitable_area_fun,
-                                    pct_suitable_area_fun) %>%
-    mutate("Suitable Area (km^2)" = value / 1000000) %>%
-    mutate("Percent Suitable" = value.1) %>% 
-    dplyr::select(-value, -value.1, -zone, -zone.1)
-  
+  # calculate west coast areain rgns total area
+suitable_zonal_stats <- zonal(suitable_cell_area,
+                         eez,
+                         fun = 'sum',
+                         na.rm = TRUE)
+
+# find percentage suitable areas
+# creating a column for percent of suitable areas zonal stats
+species_zonal_stats <- suitable_zonal_stats %>%
+  rename(suitable_area_m2 = area) %>%
+  add_column(eez_zonal_stats$area) %>%
+  rename(total_area_m2 = 'eez_zonal_stats$area') %>%
+  mutate(pct_suitable = ((suitable_area_m2/total_area_m2)*100)) 
+
+# check calculated percents are 0:100
+    
   # confirm code is running as expected
   if (
     any(
@@ -531,10 +530,10 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   } else {}
   
   # total suitiable areas map for species of interest (soi)
-  total_area_species_map <<- tm_shape(eez_species_zonal_stats) +
+  total_area_species_map <- tm_shape(eez_species_zonal_stats) +
     tm_polygons(fill = 'suitable_area', 
                 fill_alpha = 0.6,                                             # Add geometry and opacity
-                fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
+                #fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000), # Add breaks, and legend title
                                       values = 'BuPu'),                       # Add Color scheme
                 fill.legend = tm_legend(title = 'Suitable Area (km^2)')) +    # Add legend title
     tm_title(text = 'Suitable Area by Region: Species') +                     # Add figure title
@@ -545,7 +544,7 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   pct_area_species_map <<- tm_shape(eez_species_zonal_stats) +
     tm_polygons(fill = 'pct_suitable_km2', 
                 fill_alpha = 0.6,                                                        # Add geometry and opacity
-                fill.scale = tm_scale(breaks = c(0,1000,2000,3000,4000,5000),            # Add breaks, and legend title
+                         # Add breaks, and legend title
                                       values = 'BuPu'),                                  # Add Color scheme
                 fill.legend = tm_legend(title = 'Percent Suitable Area (km^2)')) +       # Add legend title
     tm_title(text = 'Percent Suitable Area by Region: Species') +                        # Add figure title
@@ -558,12 +557,14 @@ species_total_suitable_areas <- function(species, temp_min, temp_max, depth_min,
   )
 }
 
+# return(list(area_plot,pct_plot))
+
 # Run function for species
 species_total_suitable_areas("Species Name",
-                            temp_min = 12, 
-                            temp_max = 14, 
-                            depth_min = -15,
-                            depth_max = -30)
+                            temp_min = 10, 
+                            temp_max = 15, 
+                            depth_min = -180,
+                            depth_max = -20)
 ```
 
 Run your function for a species of your choice! You can find information on species depth and temperature requirements on [SeaLifeBase](https://www.sealifebase.ca/search.php). Remember, we are thinking about the potential for marine aquaculture, so these species should have some reasonable potential for commercial consumption.
