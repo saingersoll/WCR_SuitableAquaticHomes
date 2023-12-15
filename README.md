@@ -33,12 +33,12 @@ We will use average annual sea surface temperature (SST) from the years 2008 to 
 To characterize the depth of the ocean we will use the [General Bathymetric Chart of the Oceans (GEBCO)](https://www.gebco.net/data_and_products/gridded_bathymetry_data/#area).[^3]
 
 [^4]: GEBCO Compilation Group (2022) GEBCO_2022 Grid (<doi:10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c>).
-[^5] General Bathymetric Chart of the Oceans. “Gridded Bathymetry Data (General Bathymetric Chart of the Oceans).” GEBCO, www.gebco.net/data_and_products/gridded_bathymetry_data/#area.
+[^5]: General Bathymetric Chart of the Oceans. “Gridded Bathymetry Data (General Bathymetric Chart of the Oceans).” GEBCO, www.gebco.net/data_and_products/gridded_bathymetry_data/#area.
 #### Exclusive Economic Zones
 
 We will be designating maritime boundaries using Exclusive Economic Zones off of the west coast of US from [Marineregions.org](https://www.marineregions.org/eez.php).
 
-[^6] Marine Regions, www.marineregions.org/eez.php. 
+[^6]: Marine Regions, www.marineregions.org/eez.php. 
 
 **Note:** the data associated with this project is too large to include in the GitHub repo. Instead, download data from [here](https://drive.google.com/file/d/1u-iwnPDbe6ZK7wSFVMI-PpCKaRQ3RVmg/view?usp=sharing). Unzip the folder and all the contents and store in your directory as follows. Don't include data pushing to GitHub!
 
