@@ -8,7 +8,7 @@ Marine aquaculture has the potential to play an important role in the global foo
 
 For this project, we will be determining which Exclusive Economic Zones (EEZ) on the West Coast of the US are best suited to developing marine aquaculture for several species of oysters and other aquatic species.
 
-Based on previous research, we know that oysters needs the following conditions for optimal growth:\
+Based on previous research, we know that oysters needs the following conditions for optimal growth:
 
 -   sea surface temperature: 11-30°C
 -   depth: 0-70 meters below sea level
